@@ -106,14 +106,14 @@ Q.not_under = |self, f, ...| add_pos_filter(self, 'under', true,  false, f, ...)
 --- select nodes which satisfy predicate f
 function Q :filter(f, ...)
     if type(f)=='string' then f = M.has_tag(f, ...) end
-    table.insert(self.filters, f); 
+    table.insert(self.filters, f);
     return self
 end
 
 --- select nodes which satisfy predicate f
 function Q :filter_not(f, ...)
     if type(f)=='string' then f = M.has_tag(f, ...) end
-    table.insert(self.filters, |...| not f(...)) 
+    table.insert(self.filters, |...| not f(...))
     return self
 end
 
@@ -162,7 +162,7 @@ function Q :execute()
 
     function cfg.up(...)
         --printf ("[up]\t%s", table.tostring((...)))
-        
+
         -- Remove predicates which are due before we go up this node
         local preds = self.until_up[...]
         if preds then
@@ -173,7 +173,7 @@ function Q :execute()
             end
             self.until_up[...] = nil
         end
-        
+
         -- Execute the up callback
         -- TODO: cache the filter passing result from the down callback
         -- TODO: skip if there's no callback
@@ -184,7 +184,7 @@ function Q :execute()
             end
             if satisfied and self.up_f then self.up_f(...) end
         end
-    
+
         -- Set predicate which are due after we go up this node
         local preds = self.from_up[...]
         if preds then
@@ -198,7 +198,7 @@ function Q :execute()
     end
 
     function cfg.binder(id_node, ...)
-        --printf(" >>> Binder called on %s, %s", table.tostring(id_node), 
+        --printf(" >>> Binder called on %s, %s", table.tostring(id_node),
         --      table.tostring{...}:sub(2,-2))
         cfg.down(id_node, ...)
         cfg.up(id_node, ...)
@@ -220,7 +220,7 @@ end
 --  @up: function executed when we go up a node, i.e. after its children
 --       have been examined.
 function Q :foreach(down, up)
-    if not up and not down then            
+    if not up and not down then
         error "iterator not implemented"
     end
     self.up_f = up
@@ -269,7 +269,7 @@ function M.has_tag(...)
     else
         local tags = { }
         for _, tag in ipairs(args) do tags[tag]=true end
-        return function(self, node)
+        return function(node)
             local node_tag = node.tag
             return node_tag and tags[node_tag]
         end
@@ -307,7 +307,7 @@ function M.is_block(self, node) return node.tag==nil end
 -- -----------------------------------------------------------------------------
 -- -----------------------------------------------------------------------------
 
-local BINDER_GRAND_PARENT_TAG = { 
+local BINDER_GRAND_PARENT_TAG = {
    Local=true, Localrec=true, Forin=true, Function=true }
 
 --- Test whether a node is a binder. This is local predicate, although it
@@ -317,8 +317,8 @@ function M.is_binder(node, parent)
    if node.tag ~= 'Id' or not parent then return false end
    if parent.tag=='Fornum' then  return b[1]==a end
    if not BINDER_GRAND_PARENT_TAG[parent.tag] then return false end
-   for _, binder in ipairs(parent[1]) do 
-       if binder==node then return true end 
+   for _, binder in ipairs(parent[1]) do
+       if binder==node then return true end
    end
    return false
 end
@@ -402,7 +402,7 @@ function M.child(n, pred)
 end
 
 --- Predicate to test the position of a node in its parent.
---  The predicate succeeds if the node is the n-th child of its parent, 
+--  The predicate succeeds if the node is the n-th child of its parent,
 --  and a <= n <= b.
 --  nth(a) is equivalent to nth(a, a).
 --  Negative indices are admitted, and count from the last child,
