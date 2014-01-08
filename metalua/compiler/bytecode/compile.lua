@@ -25,6 +25,8 @@
 --
 ---------------------------------------------------------------------
 
+local pp = require 'metalua.pprint'
+
 local luaK = require 'metalua.compiler.bytecode.lcode'
 local luaP = require 'metalua.compiler.bytecode.lopcodes'
 
@@ -256,7 +258,7 @@ local function close_func (fs)
   f.sizeupvalues = f.nups
   assert (fs.bl == nil)
   if next(fs.forward_gotos) then
-     local x = table.tostring(fs.forward_gotos)
+     local x = pp.tostring(fs.forward_gotos)
      error ("Unresolved goto: "..x)
   end
 end
@@ -882,7 +884,7 @@ function stat.Set (fs, ast)
       local legal = { VLOCAL=1, VUPVAL=1, VGLOBAL=1, VINDEXED=1 }
       --printv(lhs)
       if not legal [lhs.v.k] then 
-         error ("Bad lhs expr: "..table.tostring(ast_lhs)) 
+         error ("Bad lhs expr: "..pp.tostring(ast_lhs)) 
       end
       if nvars < #ast_lhs then -- this is not the last lhs
          local nv = { v = { }, prev = lhs }
@@ -1032,7 +1034,7 @@ end
 
 function expr.expr (fs, ast, v)
    if type(ast) ~= "table" then 
-      error ("Expr AST expected, got "..table.tostring(ast)) end
+      error ("Expr AST expected, got "..pp.tostring(ast)) end
 
    if ast.lineinfo then fs.lastline = ast.lineinfo.last.line end
 
@@ -1040,7 +1042,8 @@ function expr.expr (fs, ast, v)
    local parser = expr[ast.tag]
    if parser then parser (fs, ast, v)
    elseif not ast.tag then 
-      error ("No tag in expression "..table.tostring(ast, 'nohash', 80))
+       error ("No tag in expression "..
+              pp.tostring(ast, {line_max=80, hide_hash=1, metalua_tag=1}))
    else 
       error ("No parser for node `"..ast.tag) end
    --debugf (" - /Expression `%s", ast.tag)
@@ -1154,7 +1157,7 @@ end
 function expr.Index (fs, ast, v)
    if #ast ~= 2 then
       print"\n\nBAD INDEX AST:"
-      table.print(ast)
+      pp.print(ast)
       error "generalized indexes not implemented" end
 
    if ast.lineinfo then fs.lastline = ast.lineinfo.last.line end
