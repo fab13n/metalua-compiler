@@ -81,6 +81,7 @@
 module ('spmatch', package.seeall)
 
 local gg  = require 'metalua.grammar.generator'
+local pp  = require 'metalua.pprint'
 
 ----------------------------------------------------------------------
 -- This would have been best done through library 'metalua.walk',
@@ -161,7 +162,9 @@ function pattern_element_builder (pattern, term, cfg)
    elseif "Table" == pattern.tag then
       table_pattern_element_builder (pattern, term, cfg)
    else
-      error ("Invalid pattern: "..table.tostring(pattern, "nohash"))
+      error ("Invalid pattern at "..
+             tostring(pattern.lineinfo)..
+             ": "..pp.tostring(pattern, {hide_hash=true}))
    end
 end
 

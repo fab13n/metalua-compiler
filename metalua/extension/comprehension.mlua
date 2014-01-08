@@ -32,14 +32,16 @@
 
 local gg  = require 'metalua.grammar.generator'
 
-local function dots_list_suffix_builder (x) return `Dots{ x } end
+local function dots_list_suffix_builder (x) return `DotsSuffix{ x } end
 
 local function for_list_suffix_builder (list_element, suffix)
     local new_header = suffix[1]
     match list_element with
     | `Comp{ _, acc } -> table.insert (acc, new_header); return list_element
-    | `Pair{ _, _ }   -> error "No explicit key in a for list generator"
-    |  _              -> return `Comp{ list_element, { new_header } }
+--    | `Pair{ _, _ } ->
+--        error("at "..tostring(list_element.lineinfo)..
+--            ": no explicit key in a for list generator")
+    |  _ -> return `Comp{ list_element, { new_header } }
     end
 end
 
@@ -47,8 +49,10 @@ local function if_list_suffix_builder (list_element, suffix)
     local new_header = `If{ suffix[1] }
     match list_element with
     | `Comp{ _, acc } -> table.insert (acc, new_header); return list_element
-    | `Pair{ _, _ }   -> error "No explicit key in a list guard"
-    |  _              -> return `Comp{ x, { new_header } }
+--    | `Pair{ _, _ } ->
+--        error("at "..tostring(list_element.lineinfo)..
+--            ": no explicit key in a list guard")
+    |  _ -> return `Comp{ x, { new_header } }
     end
 end
 
@@ -56,7 +60,7 @@ end
 -- a table `t`, potentially thanks to an alias `tinsert` to
 -- `table.insert`.
 -- @param core the part around which the loops are built.
---   either `Dots{expr}, `Pair{ expr } or a plain expression
+--   either `DotsSuffix{expr}, `Pair{ expr } or a plain expression
 -- @param list comprehension suffixes, in the order in which they appear
 --   either `Forin{ ... } or `Fornum{ ...} or `If{ ... }. In each case,
 --   it misses a last child node as its body.
@@ -69,12 +73,12 @@ local function comp_list_builder(core, list, t, tinsert)
     -- 1 - Build the loop's core: if it has suffix "...", every elements of the
     --     multi-return must be inserted, hence the extra [for] loop.
     match core with
-    | `Dots{ element } ->
+    | `DotsSuffix{ element } ->
         local x = gg.gensym()
         filler = +{stat: for _, -{x} in pairs{ -{element} } do (-{tinsert})(-{t}, -{x}) end }
     | `Pair{ key, value } ->
         --filler = +{ -{t}[-{key}] = -{value} }
-        filler = `Set{ +{-{t}[-{key}]}, {value} }
+        filler = `Set{ { `Index{ t, key } }, { value } }
     |  _ -> filler = +{ (-{tinsert})(-{t}, -{core}) }
     end
 
@@ -92,7 +96,7 @@ local function table_content_builder (list)
     local special = false -- Does the table need a special builder?
     for _, element in ipairs(list) do
         local etag = element.tag
-        if etag=='Comp' or etag=='Dots' then special=true; break end
+        if etag=='Comp' or etag=='DotsSuffix' then special=true; break end
     end
     if not special then list.tag='Table'; return list end
 
