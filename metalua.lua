@@ -17,8 +17,11 @@
 --
 -------------------------------------------------------------------------------
 
+-- Survive lack of checks
+if not pcall(require, 'checks') then function package.preload.checks() function checks() end end end
+
 -- Main file for the metalua executable
-require 'metalua.package' -- load *.mlue files
+require 'metalua.loader' -- load *.mlue files
 require 'metalua.compiler.globals' -- metalua-aware loadstring, dofile etc.
 
 local alt_getopt = require 'alt_getopt'
@@ -78,8 +81,8 @@ function M.cmdline_parser(...)
     local argv = {...}
     local opts, optind, optarg =
         alt_getopt.get_ordered_opts({...}, alt_getopt_options, long_opts)
-    pp.printf("argv=%s; opts=%s, ending at %i, with optarg=%s",
-              argv, opts, optind, optarg)
+    --pp.printf("argv=%s; opts=%s, ending at %i, with optarg=%s",
+    --          argv, opts, optind, optarg)
     local s2l = { } -- short to long option names conversion table
     for long, short in pairs(long_opts) do s2l[short]=long end
     local cfg = { chunks = { } }
@@ -89,7 +92,6 @@ function M.cmdline_parser(...)
         else cfg[long] = optarg[i] or true end
     end
     cfg.params = { select(optind, ...) }
-    pp.printf("cfg=%s", cfg)
     return cfg
 end
 
@@ -106,14 +108,14 @@ function M.main (...)
       end
    end
 
-   if cfg.v then
-      verb_print("raw options: %s", pp.tostring(cfg))
+   if cfg.verbose then
+      verb_print("raw options: %s", cfg)
    end
 
    -------------------------------------------------------------------
    -- If there's no chunk but there are params, interpret the first
    -- param as a file name.
-   if not next(cfg.chunks) and cfg.params then
+   if not next(cfg.chunks) and next(cfg.params) then
       local the_file = table.remove(cfg.params, 1)
       verb_print("Param %q considered as a source file", the_file)
       cfg.file={ the_file }
