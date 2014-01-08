@@ -36,7 +36,7 @@ build = {
         ["metalua.compiler.bytecode.lcode"] = "metalua/compiler/bytecode/lcode.lua",
         ["metalua.compiler.bytecode.lopcodes"] = "metalua/compiler/bytecode/lopcodes.lua",
         ["metalua.compiler.bytecode.ldump"] = "metalua/compiler/bytecode/ldump.lua",
-        ["metalua.package"] = "metalua/package.lua",
+        ["metalua.loader"] = "metalua/loader.lua",
     },
     install={lua={
         ["metalua.treequery"] = "metalua/treequery.mlua",
@@ -45,7 +45,7 @@ build = {
         ["metalua.extension.match"] = "metalua/extension/match.mlua",
         ["metalua.extension.xloop"] = "metalua/extension/xloop.mlua",
         ["metalua.extension.xmatch"] = "metalua/extension/xmatch.mlua",
-        ["metalua.extension.clist"] = "metalua/extension/clist.mlua",
+        ["metalua.extension.comprehension"] = "metalua/extension/comprehension.mlua",
         ["metalua.extension.log"] = "metalua/extension/log.mlua",
         ["metalua.repl"] = "metalua/repl.mlua",
     }}

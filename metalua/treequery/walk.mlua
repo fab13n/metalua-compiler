@@ -49,7 +49,7 @@
 -- corresponding walk.xxx functions also take care of calling cfg callbacks.
 
 -{ extension ("match", ...) }
--{ extension ("clist", ...) }
+-{ extension ("comprehension", ...) }
 
 local pp = require 'metalua.pprint'
 
