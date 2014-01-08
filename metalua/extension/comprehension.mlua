@@ -31,6 +31,7 @@
 -{ extension ("match", ...) }
 
 local gg  = require 'metalua.grammar.generator'
+local Q   = require 'metalua.treequery'
 
 local function dots_list_suffix_builder (x) return `DotsSuffix{ x } end
 
@@ -38,9 +39,6 @@ local function for_list_suffix_builder (list_element, suffix)
     local new_header = suffix[1]
     match list_element with
     | `Comp{ _, acc } -> table.insert (acc, new_header); return list_element
---    | `Pair{ _, _ } ->
---        error("at "..tostring(list_element.lineinfo)..
---            ": no explicit key in a for list generator")
     |  _ -> return `Comp{ list_element, { new_header } }
     end
 end
@@ -49,9 +47,6 @@ local function if_list_suffix_builder (list_element, suffix)
     local new_header = `If{ suffix[1] }
     match list_element with
     | `Comp{ _, acc } -> table.insert (acc, new_header); return list_element
---    | `Pair{ _, _ } ->
---        error("at "..tostring(list_element.lineinfo)..
---            ": no explicit key in a list guard")
     |  _ -> return `Comp{ x, { new_header } }
     end
 end
@@ -116,7 +111,6 @@ end
 
 --------------------------------------------------------------------------------
 -- Back-end for improved index operator.
---------------------------------------------------------------------------------
 local function index_builder(a, suffix)
    match suffix[1] with
    -- Single index, no range: keep the native semantics
@@ -135,34 +129,63 @@ local function index_builder(a, suffix)
    end
 end
 
-local function for_stat_builder(x)
-    local header, body = unpack(x)
-    if header.tag=='Multi' then
-        for i = #header, 1, -1 do
-            local x = header[i]
-            table.insert(x, body)
-            body = {x}
-        end
-        return body
-    else
-        table.insert(header, body)
-        return header
-    end
+-------------------------------------------------------------------------------
+-- Back-end for loops with a multi-element header
+local function loop_builder(x)
+    require'metalua.pprint'.print(x,{line_max=1,hide_hash=1,metalua_tag=1})
+   local first, elements, body = unpack(x)
+
+   -------------------------------------------------------------------
+   -- If it's a regular loop, don't bloat the code
+   if not next(elements) then
+      table.insert(first, body)
+      return first
+   end
+
+   -------------------------------------------------------------------
+   -- There's no reason to treat the first element in a special way
+   table.insert(elements, 1, first)
+
+   -------------------------------------------------------------------
+   -- Change breaks into gotos that escape all loops at once.
+   local exit_label = nil
+   local function break_to_goto(break_node)
+       if not exit_label then exit_label = gg.gensym 'break' [1] end
+       break_node = break_node or { }
+       break_node.tag = 'Goto'
+       break_node[1] = exit_label
+       return break_node
+   end
+   Q(body)
+       :not_under('Function', 'Forin', 'Fornum', 'While', 'Repeat')
+       :filter('Break')
+       :foreach (break_to_goto)
+
+   -------------------------------------------------------------------
+   -- Compile all headers elements, from last to first.
+   -- invariant: `body` is a block (not a statement)
+   for i = #elements, 1, -1 do
+      local e = elements[i]
+      match e with
+      | `If{ cond }    ->
+         body = { `If{ cond, body } }
+      | `Until{ cond } ->
+         body = +{block: if -{cond} then -{break_to_goto()} else -{body} end }
+      | `While{ cond } ->
+         if i==1 then body = { `While{ cond, body } } -- top-level while
+         else body = +{block: if -{cond} then -{body} else -{break_to_goto()} end } end
+      | `Forin{ ... } | `Fornum{ ... } ->
+         table.insert (e, body); body={e}
+      | _-> require'metalua.pprint'.printf("Bad loop header element %s", e)
+      end
+   end
+
+   -------------------------------------------------------------------
+   -- If some breaks had to be changed into gotos, insert the label
+   if exit_label then body = { body, `Label{ exit_label } } end
+   return body
 end
 
-local function for_stat_for_suffix_builder(headers, suffix)
-    local new_header = suffix[1]
-    if headers.tag=='Multi' then
-        table.insert(headers, new_header); return headers
-    else return `Multi{ headers, new_header } end
-end
-
-local function for_stat_if_suffix_builder(headers, suffix)
-    local new_header = `If{ suffix[1] }
-    if headers.tag=='Multi' then
-        table.insert(headers, new_header); return headers
-    else return `Multi{ headers, new_header } end
-end
 
 --------------------------------------------------------------------------------
 -- Improved "[...]" index operator:
@@ -192,13 +215,27 @@ local function extend(M)
             separators = { ",", ";" } },
         "]", builder = index_builder }
 
-    -- Support for composed for-loop statements
-    M.stat:add{ "for", gg.expr {
-        primary = _M.for_header,
-        suffix = {
-            { "for", _M.for_header, builder = for_stat_for_suffix_builder  },
-            { "if",  _M.expr,       builder = for_stat_if_suffix_builder   } } },
-        "do", _M.block, "end", builder = for_stat_builder }
+    local original_for_header = M.for_header
+    M.stat :del  'for'
+    M.stat :del  'while'
+
+    M.loop_suffix = gg.multisequence{
+        { 'while',  _M.expr, builder = |x| `Until{ `Op{ 'not', x[1] } } },
+        { 'until',  _M.expr, builder = |x| `Until{ x[1] } },
+        { 'if',     _M.expr, builder = |x| `If{ x[1] } },
+        { 'for',    original_for_header, builder = |x| x[1] } }
+
+    M.loop_suffix_list = gg.list{ _M.loop_suffix, terminators='do' }
+
+    M.stat :add{
+        'for', original_for_header, _M.loop_suffix_list, 'do', _M.block, 'end',
+        builder = loop_builder }
+
+    M.stat :add{
+        'while', _M.expr, _M.loop_suffix_list, 'do', _M.block, 'end',
+        builder = |x| loop_builder{ `While{x[1]}, x[2], x[3] } }
+
+
 end
 
 return extend

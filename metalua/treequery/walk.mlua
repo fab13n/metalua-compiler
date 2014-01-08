@@ -49,7 +49,6 @@
 -- corresponding walk.xxx functions also take care of calling cfg callbacks.
 
 -{ extension ("match", ...) }
--{ extension ("comprehension", ...) }
 
 local pp = require 'metalua.pprint'
 
@@ -245,7 +244,8 @@ function M.newscope()
 end
 
 function S :save(...)
-    local current_copy = { [a]=b for a, b in pairs(self.current) }
+    local current_copy = { }
+    for a, b in pairs(self.current) do current_copy[a]=b end
     table.insert (self.stack, current_copy)
     if ... then return self :add(...) end
 end

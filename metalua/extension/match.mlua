@@ -78,6 +78,8 @@
 -- TODO: cfg.ntmp isn't reset as often as it could. I'm not even sure
 --       the corresponding locals are declared.
 
+local tostring=tostring
+
 module ('spmatch', package.seeall)
 
 local gg  = require 'metalua.grammar.generator'
@@ -351,10 +353,11 @@ function match_builder (x)
          end
       end
       acc_stat(case_cfg.code, cfg)
-   end
-   acc_stat(+{error 'mismatch'}, cfg)
-   acc_stat(`Label{cfg.after_success}, cfg)
-   return cfg.code
+  end
+  local li = `String{tostring(cases.lineinfo)}
+  acc_stat(+{error('mismatch at '..-{li})}, cfg)
+  acc_stat(`Label{cfg.after_success}, cfg)
+  return cfg.code
 end
 
 ----------------------------------------------------------------------
