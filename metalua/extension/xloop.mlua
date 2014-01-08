@@ -33,40 +33,24 @@
 -- * if <condition> in a loop header will skip an iteration
 --   if the condition is not satisfied.
 --
--- * unless <condition> in a loop header will skip an iteration
---   if the condition is satisfied.
---
--- TODO: document ordering matters, e.g. how 
+-- TODO: document ordering matters, e.g. how
 -- "for i in x() if cond(i) for j in y()" is parsed.
+-- TODO: merge with metalua.extension.comprehension
 --
 -------------------------------------------------------------------------------
 
 -{ extension ('match', ...) }
 
-require 'metalua.walk'
-
+local Q   = require 'metalua.treequery'
 local gg  = require 'metalua.grammar.generator'
-local mlp = require 'metalua.compiler.parser'
 
-----------------------------------------------------------------------
--- Back-end:
-----------------------------------------------------------------------
-
--- Parse additional elements in a loop
-loop_element = gg.multisequence{
-   { 'while',  mlp.expr, builder = |x| `Until{ `Op{ 'not', x[1] } } },
-   { 'until',  mlp.expr, builder = |x| `Until{ x[1] } },
-   { 'if',     mlp.expr, builder = |x| `If{ x[1] } },
-   { 'unless', mlp.expr, builder = |x| `If{ `Op{ 'not', x[1] } } },
-   { 'for',    mlp.for_header, builder = |x| x[1] } }
-
--- Recompose the loop
-function xloop_builder(x)
+-------------------------------------------------------------------------------
+-- Back-end: Recompose the loop
+local function loop_builder(x)
    local first, elements, body = unpack(x)
 
    -------------------------------------------------------------------
    -- If it's a regular loop, don't bloat the code
-   -------------------------------------------------------------------
    if not next(elements) then
       table.insert(first, body)
       return first
@@ -74,23 +58,23 @@ function xloop_builder(x)
 
    -------------------------------------------------------------------
    -- There's no reason to treat the first element in a special way
-   -------------------------------------------------------------------
    table.insert(elements, 1, first)
 
    -------------------------------------------------------------------
-   -- if a header or a break must be able to exit the loops, ti will
-   -- set exit_label and use it (a regular break wouldn't be enough,
-   -- as it couldn't escape several nested loops.)
-   -------------------------------------------------------------------
-   local exit_label
-   local function exit()
-      if not exit_label then exit_label = mlp.gensym 'break' [1] end
-      return `Goto{ exit_label }
+   -- Change breaks into gotos that escape all loops at once.
+   local exit_label = nil
+   local function break_to_goto(break_node)
+       if not exit_label then exit_label = gg.gensym 'break' [1] end
+       break_node.tag = 'Goto'
+       break_node[1] = exit_label
    end
+   Q(body)
+       :not_under('Function', 'Forin', 'Fornum', 'While', 'Repeat')
+       :filter('Break')
+       :foreach (break_to_goto)
 
    -------------------------------------------------------------------
    -- Compile all headers elements, from last to first
-   -------------------------------------------------------------------
    for i = #elements, 1, -1 do
       local e = elements[i]
       match e with
@@ -104,38 +88,33 @@ function xloop_builder(x)
    end
 
    -------------------------------------------------------------------
-   -- Change breaks into gotos that escape all loops at once.
-   -------------------------------------------------------------------
-   local cfg = { stat = { }, expr = { } }
-   function cfg.stat.down(x)
-      match x with
-      | `Break -> x <- exit()
-      | `Forin{ ... } | `Fornum{ ... } | `While{ ... } | `Repeat{ ... } ->
-         return 'break'
-      | _ -> -- pass
-      end
-   end
-   function cfg.expr.down(x) if x.tag=='Function' then return 'break' end end
-   walk.stat(cfg, body)
-
+   -- If some breaks had to be changed into gotos, insert the label
    if exit_label then body = { body, `Label{ exit_label } } end
    return body
 end
 
 ----------------------------------------------------------------------
--- Front-end:
-----------------------------------------------------------------------
+-- Syntax modifier
 
-mlp.lexer:add 'unless'
-mlp.stat:del  'for'
-mlp.stat:del  'while'
+return function(M)
+    local _M= gg.future(M)
+    local original_for_header = M.for_header
+    M.stat :del  'for'
+    M.stat :del  'while'
 
-loop_element_list = gg.list{ loop_element, terminators='do' }
+    M.loop_suffix = gg.multisequence{
+        { 'while',  _M.expr, builder = |x| `Until{ `Op{ 'not', x[1] } } },
+        { 'until',  _M.expr, builder = |x| `Until{ x[1] } },
+        { 'if',     _M.expr, builder = |x| `If{ x[1] } },
+        { 'for',    original_for_header, builder = |x| x[1] } }
 
-mlp.stat:add{
-   'for', mlp.for_header, loop_element_list, 'do', mlp.block, 'end',
-   builder = xloop_builder }
+    M.loop_suffix_list = gg.list{ _M.loop_suffix, terminators='do' }
 
-mlp.stat:add{
-   'while', mlp.expr, loop_element_list, 'do', mlp.block, 'end',
-   builder = |x| xloop_builder{ `While{x[1]}, x[2], x[3] } }
+    M.stat :add{
+        'for', original_for_header, _M.loop_suffix_list, 'do', _M.block, 'end',
+        builder = loop_builder }
+
+    M.stat :add{
+        'while', _M.expr, _M.loop_suffix_list, 'do', _M.block, 'end',
+        builder = |x| loop_builder{ `While{x[1]}, x[2], x[3] } }
+end
