@@ -288,7 +288,7 @@ local STAT_TAGS = { Do=1, Set=1, While=1, Repeat=1, If=1, Fornum=1,
 --- Predicate to test whether a node represents a statement.
 --  It is context-aware, i.e. it recognizes `Call and `Invoke nodes
 --  used in a statement context as such.
-function M.is_stat(self, node, parent)
+function M.is_stat(node, parent)
     local tag = node.tag
     if not tag then return false
     elseif STAT_TAGS[tag] then return true
@@ -297,7 +297,7 @@ function M.is_stat(self, node, parent)
 end
 
 --- Predicate to test whether a node represents a statements block.
-function M.is_block(self, node) return node.tag==nil end
+function M.is_block(node) return node.tag==nil end
 
 -- -----------------------------------------------------------------------------
 -- -----------------------------------------------------------------------------
