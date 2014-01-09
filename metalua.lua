@@ -195,8 +195,8 @@ function M.main (...)
          pp.printf("--- AST From %s: ---", x.source)
          if x.origin and x.origin.tag=='File' then x=x[1][1][2][1] end
          local pp_cfg = cfg['print-ast-lineinfo']
-             and { line_max=1, fix_indent=1, metalua=tag=1 }
-             or  { line_max=1, metalua=tag=1, hide_hash=1  }
+             and { line_max=1, fix_indent=1, metalua_tag=1 }
+             or  { line_max=1, metalua_tag=1, hide_hash=1  }
          pp.print(x, 80, pp_cfg)
       end
    end
