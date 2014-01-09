@@ -307,7 +307,7 @@ function M.is_block(self, node) return node.tag==nil end
 -- -----------------------------------------------------------------------------
 -- -----------------------------------------------------------------------------
 
-local BINDER_GRAND_PARENT_TAG = {
+local BINDER_PARENT_TAG = {
    Local=true, Localrec=true, Forin=true, Function=true }
 
 --- Test whether a node is a binder. This is local predicate, although it
@@ -316,7 +316,7 @@ function M.is_binder(node, parent)
    --printf('is_binder(%s, %s)', table.tostring(node), table.tostring(parent))
    if node.tag ~= 'Id' or not parent then return false end
    if parent.tag=='Fornum' then  return parent[1]==node end
-   if not BINDER_GRAND_PARENT_TAG[parent.tag] then return false end
+   if not BINDER_PARENT_TAG[parent.tag] then return false end
    for _, binder in ipairs(parent[1]) do
        if binder==node then return true end
    end
@@ -371,8 +371,6 @@ function M.get_binder(occurrence, ...)
     local binder_hierarchy = scope :get(occurrence[1])
     return unpack (binder_hierarchy or { })
 end
-
-
 
 --- Transform a predicate on a node into a predicate on this node's
 --  parent. For instance if p tests whether a node has property P,
