@@ -25,6 +25,7 @@ M.metalua_extension_prefix = 'metalua.extension.'
 M.mpath = M.mpath or os.getenv 'LUA_MPATH' or
     (M.path..";") :gsub("%.(lua[:;])", ".m%1") :sub(1, -2)
 
+M.mcache = M.mcache or os.getenv 'LUA_MCACHE'
 
 ----------------------------------------------------------------------
 -- resc(k) returns "%"..k if it's a special regular expression char,
@@ -58,6 +59,40 @@ function M.findfile(name, path_string)
 end
 
 ----------------------------------------------------------------------
+-- Before compiling a metalua source module, try to find and load
+-- a more recent bytecode dump. Requires lfs
+----------------------------------------------------------------------
+local function metalua_cache_loader(name, src_filename, src)
+    local mlc          = require 'metalua.compiler'.new()
+    local lfs          = require 'lfs'
+    local dir_sep      = M.config:sub(1,1)
+    local dst_filename = M.mcache :gsub ('%?', (name:gsub('%.', dir_sep)))
+    local src_a        = lfs.attributes(src_filename)
+    local src_date     = src_a and src_a.modification or 0
+    local dst_a        = lfs.attributes(dst_filename)
+    local dst_date     = dst_a and dst_a.modification or 0
+    local delta        = dst_date - src_date
+    local bytecode, file, msg
+    if delta <= 0 then
+       print "NEED TO RECOMPILE"
+       bytecode = mlc :src_to_bytecode (src, name)
+       for x in dst_filename :gmatch('()'..dir_sep) do
+          lfs.mkdir(dst_filename:sub(1,x))
+       end
+       file, msg = io.open(dst_filename, 'wb')
+       if not file then error(msg) end
+       file :write (bytecode)
+       file :close()
+    else
+       file, msg = io.open(dst_filename, 'rb')
+       if not file then error(msg) end
+       bytecode = file :read '*a'
+       file :close()
+    end
+    return mlc :bytecode_to_function (bytecode)
+end
+
+----------------------------------------------------------------------
 -- Load a metalua source file.
 ----------------------------------------------------------------------
 function M.metalua_loader (name)
@@ -65,9 +100,11 @@ function M.metalua_loader (name)
    if not file then return filename_or_msg end
    local luastring = file:read '*a'
    file:close()
-   local mlc = require 'metalua.compiler'.new()
-   return mlc :src_to_function (luastring, name)
+   if M.mcache and pcall(require, 'lfs') then
+      return metalua_cache_loader(name, filename_or_msg, luastring)
+   else return require 'metalua.compiler'.new() :src_to_function (luastring, name) end
 end
+
 
 ----------------------------------------------------------------------
 -- Placed after lua/luac loader, so precompiled files have
