@@ -36,10 +36,16 @@ do -- set readline() to a line reader, either editline otr a default
       local rl_handle = editline.init 'metalua'
       readline = |p| rl_handle:read(p)
    else
-      function readline (p)
-         io.write (p)
-         io.flush ()
-         return io.read '*l'
+      local status, rl = pcall(require, 'readline')
+      if status then
+         rl.set_options{histfile='~/.metalua_history', keeplines=100, completion=false }
+         readline = rl.readline
+      else -- neither editline nor readline available
+         function readline (p)
+            io.write (p)
+            io.flush ()
+            return io.read '*l'
+         end
       end
    end
 end

@@ -20,12 +20,12 @@ description = {
 }
 
 dependencies = {
-    "lua ~> 5.1",
-    "checks >= 1.0",
-    "metalua-parser == 0.7.2"
+    "lua ~> 5.1",              -- Lua 5.2 bytecode not supported
+    "checks >= 1.0",           -- Argument type checking
+    "luafilesystem >= 1.6.2",  -- Cached compilation based on file timestamps
+    "readline >= 1.3",         -- Better REPL experience
+    "metalua-parser == 0.7.2", -- AST production
 }
-
-
 
 build = {
     type="builtin",
