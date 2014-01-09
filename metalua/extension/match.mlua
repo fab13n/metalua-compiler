@@ -78,9 +78,6 @@
 -- TODO: cfg.ntmp isn't reset as often as it could. I'm not even sure
 --       the corresponding locals are declared.
 
-local tostring=tostring
-
-module ('spmatch', package.seeall)
 
 local gg  = require 'metalua.grammar.generator'
 local pp  = require 'metalua.pprint'
@@ -91,7 +88,7 @@ local pp  = require 'metalua.pprint'
 -- It replaces all instances of `...' in `ast' with `term', unless
 -- it appears in a function.
 ----------------------------------------------------------------------
-function replace_dots (ast, term)
+local function replace_dots (ast, term)
     local function rec (node)
         for i, child in ipairs(node) do
             if type(child)~="table" then -- pass
@@ -107,30 +104,30 @@ function replace_dots (ast, term)
     return rec(ast)
 end
 
-tmpvar_base = gg.gensym 'submatch.' [1]
+local tmpvar_base = gg.gensym 'submatch.' [1]
 
-function next_tmpvar(cfg)
+local function next_tmpvar(cfg)
    assert (cfg.ntmp, "No cfg.ntmp imbrication level in the match compiler")
    cfg.ntmp = cfg.ntmp+1
    return `Id{ tmpvar_base .. cfg.ntmp }
 end
 
 -- Code accumulators
-acc_stat = |x,cfg| table.insert (cfg.code, x)
-acc_test = |x,cfg| acc_stat(+{stat: if -{x} then -{`Goto{cfg.on_failure}} end}, cfg)
+local acc_stat = |x,cfg| table.insert (cfg.code, x)
+local acc_test = |x,cfg| acc_stat(+{stat: if -{x} then -{`Goto{cfg.on_failure}} end}, cfg)
 -- lhs :: `Id{ string }
 -- rhs :: expr
-function acc_assign (lhs, rhs, cfg)
+local function acc_assign (lhs, rhs, cfg)
    assert(lhs.tag=='Id')
    cfg.locals[lhs[1]] = true
    acc_stat (`Set{ {lhs}, {rhs} }, cfg)
 end
 
-literal_tags = { String=1, Number=1, True=1, False=1, Nil=1 }
+local literal_tags = { String=1, Number=1, True=1, False=1, Nil=1 }
 
 -- pattern :: `Id{ string }
 -- term    :: expr
-function id_pattern_element_builder (pattern, term, cfg)
+local function id_pattern_element_builder (pattern, term, cfg)
    assert (pattern.tag == "Id")
    if pattern[1] == "_" then
       -- "_" is used as a dummy var ==> no assignment, no == checking
@@ -145,76 +142,12 @@ function id_pattern_element_builder (pattern, term, cfg)
    end
 end
 
--- Concatenate code in [cfg.code], that will jump to label
--- [cfg.on_failure] if [pattern] doesn't match [term]. [pattern]
--- should be an identifier, or at least cheap to compute and
--- side-effects free.
---
--- pattern :: pattern_element
--- term    :: expr
-function pattern_element_builder (pattern, term, cfg)
-   if literal_tags[pattern.tag] then
-      acc_test (+{ -{term} ~= -{pattern} }, cfg)
-   elseif "Id" == pattern.tag then
-      id_pattern_element_builder (pattern, term, cfg)
-   elseif "Op" == pattern.tag and "div" == pattern[1] then
-      regexp_pattern_element_builder (pattern, term, cfg)
-   elseif "Op" == pattern.tag and "eq" == pattern[1] then
-      eq_pattern_element_builder (pattern, term, cfg)
-   elseif "Table" == pattern.tag then
-      table_pattern_element_builder (pattern, term, cfg)
-   else
-      error ("Invalid pattern at "..
-             tostring(pattern.lineinfo)..
-             ": "..pp.tostring(pattern, {hide_hash=true}))
-   end
-end
-
-function eq_pattern_element_builder (pattern, term, cfg)
-   local _, pat1, pat2 = unpack (pattern)
-   local ntmp_save = cfg.ntmp
-   pattern_element_builder (pat1, term, cfg)
-   cfg.ntmp = ntmp_save
-   pattern_element_builder (pat2, term, cfg)
-end
-
--- pattern :: `Op{ 'div', string, list{`Id string} or `Id{ string }}
--- term    :: expr
-function regexp_pattern_element_builder (pattern, term, cfg)
-   local op, regexp, sub_pattern = unpack(pattern)
-
-   -- Sanity checks --
-   assert (op=='div', "Don't know what to do with that op in a pattern")
-   assert (regexp.tag=="String",
-           "Left hand side operand for '/' in a pattern must be "..
-           "a literal string representing a regular expression")
-   if sub_pattern.tag=="Table" then
-      for _, x in ipairs(sub_pattern) do
-	 assert (x.tag=="Id" or x.tag=='Dots',
-		 "Right hand side operand for '/' in a pattern must be "..
-		 "a list of identifiers")
-      end
-   else
-      assert (sub_pattern.tag=="Id",
-	      "Right hand side operand for '/' in a pattern must be "..
-              "an identifier or a list of identifiers")
-   end
-
-   -- Regexp patterns can only match strings
-   acc_test (+{ type(-{term}) ~= 'string' }, cfg)
-   -- put all captures in a list
-   local capt_list  = +{ { string.strmatch(-{term}, -{regexp}) } }
-   -- save them in a var_n for recursive decomposition
-   local v2 = next_tmpvar(cfg)
-   acc_stat (+{stat: local -{v2} = -{capt_list} }, cfg)
-   -- was capture successful?
-   acc_test (+{ not next (-{v2}) }, cfg)
-   pattern_element_builder (sub_pattern, v2, cfg)
-end
+-- mutually recursive with table_pattern_element_builder
+local pattern_element_builder
 
 -- pattern :: pattern and `Table{ }
 -- term    :: expr
-function table_pattern_element_builder (pattern, term, cfg)
+local function table_pattern_element_builder (pattern, term, cfg)
    local seen_dots, len = false, 0
    acc_test (+{ type( -{term} ) ~= "table" }, cfg)
    for i = 1, #pattern do
@@ -258,9 +191,80 @@ function table_pattern_element_builder (pattern, term, cfg)
    end
 end
 
+-- mutually recursive with pattern_element_builder
+local eq_pattern_element_builder, regexp_pattern_element_builder
+
+-- Concatenate code in [cfg.code], that will jump to label
+-- [cfg.on_failure] if [pattern] doesn't match [term]. [pattern]
+-- should be an identifier, or at least cheap to compute and
+-- side-effects free.
+--
+-- pattern :: pattern_element
+-- term    :: expr
+function pattern_element_builder (pattern, term, cfg)
+   if literal_tags[pattern.tag] then
+      acc_test (+{ -{term} ~= -{pattern} }, cfg)
+   elseif "Id" == pattern.tag then
+      id_pattern_element_builder (pattern, term, cfg)
+   elseif "Op" == pattern.tag and "div" == pattern[1] then
+      regexp_pattern_element_builder (pattern, term, cfg)
+   elseif "Op" == pattern.tag and "eq" == pattern[1] then
+      eq_pattern_element_builder (pattern, term, cfg)
+   elseif "Table" == pattern.tag then
+      table_pattern_element_builder (pattern, term, cfg)
+   else
+      error ("Invalid pattern at "..
+             tostring(pattern.lineinfo)..
+             ": "..pp.tostring(pattern, {hide_hash=true}))
+   end
+end
+
+function eq_pattern_element_builder (pattern, term, cfg)
+   local _, pat1, pat2 = unpack (pattern)
+   local ntmp_save = cfg.ntmp
+   pattern_element_builder (pat1, term, cfg)
+   cfg.ntmp = ntmp_save
+   pattern_element_builder (pat2, term, cfg)
+end
+
+-- pattern :: `Op{ 'div', string, list{`Id string} or `Id{ string }}
+-- term    :: expr
+local function regexp_pattern_element_builder (pattern, term, cfg)
+   local op, regexp, sub_pattern = unpack(pattern)
+
+   -- Sanity checks --
+   assert (op=='div', "Don't know what to do with that op in a pattern")
+   assert (regexp.tag=="String",
+           "Left hand side operand for '/' in a pattern must be "..
+           "a literal string representing a regular expression")
+   if sub_pattern.tag=="Table" then
+      for _, x in ipairs(sub_pattern) do
+	 assert (x.tag=="Id" or x.tag=='Dots',
+		 "Right hand side operand for '/' in a pattern must be "..
+		 "a list of identifiers")
+      end
+   else
+      assert (sub_pattern.tag=="Id",
+	      "Right hand side operand for '/' in a pattern must be "..
+              "an identifier or a list of identifiers")
+   end
+
+   -- Regexp patterns can only match strings
+   acc_test (+{ type(-{term}) ~= 'string' }, cfg)
+   -- put all captures in a list
+   local capt_list  = +{ { string.strmatch(-{term}, -{regexp}) } }
+   -- save them in a var_n for recursive decomposition
+   local v2 = next_tmpvar(cfg)
+   acc_stat (+{stat: local -{v2} = -{capt_list} }, cfg)
+   -- was capture successful?
+   acc_test (+{ not next (-{v2}) }, cfg)
+   pattern_element_builder (sub_pattern, v2, cfg)
+end
+
+
 -- Jumps to [cfg.on_faliure] if pattern_seq doesn't match
 -- term_seq.
-function pattern_seq_builder (pattern_seq, term_seq, cfg)
+local function pattern_seq_builder (pattern_seq, term_seq, cfg)
    if #pattern_seq ~= #term_seq then error ("Bad seq arity") end
    cfg.locals = { } -- reset bound variables between alternatives
    for i=1, #pattern_seq do
@@ -279,7 +283,7 @@ end
 --   goto after_success
 --   label on_failure_i
 --------------------------------------------------
-function case_builder (case, term_seq, cfg)
+local function case_builder (case, term_seq, cfg)
    local patterns_group, guard, block = unpack(case)
    local on_success = gg.gensym 'on_success' [1]
    for i = 1, #patterns_group do
@@ -303,7 +307,7 @@ function case_builder (case, term_seq, cfg)
    acc_stat (`Label{cfg.on_failure}, cfg)
 end
 
-function match_builder (x)
+local function match_builder (x)
    local term_seq, cases = unpack(x)
    local cfg = {
       code          = `Do{ },
@@ -364,26 +368,29 @@ end
 -- Syntactical front-end
 ----------------------------------------------------------------------
 
-local function extend(mlp)
-    checks('metalua.compiler.parser')
-    mlp.lexer:add{ "match", "with", "->" }
-    mlp.block.terminators:add "|"
+local function extend(M)
 
-    match_cases_list_parser = gg.list{ name = "match cases list",
+    local _M = gg.future(M)
+
+    checks('metalua.compiler.parser')
+    M.lexer:add{ "match", "with", "->" }
+    M.block.terminators:add "|"
+
+    local match_cases_list_parser = gg.list{ name = "match cases list",
         gg.sequence{ name = "match case",
                      gg.list{ name  = "match case patterns list",
-                              primary     = mlp.expr_list,
+                              primary     = _M.expr_list,
                               separators  = "|",
                               terminators = { "->", "if" } },
-                     gg.onkeyword{ "if", mlp.expr, consume = true },
+                     gg.onkeyword{ "if", _M.expr, consume = true },
                      "->",
-                     mlp.block },
+                     _M.block },
         separators  = "|",
         terminators = "end" }
 
-    mlp.stat:add{ name = "match statement",
+    M.stat:add{ name = "match statement",
                   "match",
-                  mlp.expr_list,
+                  _M.expr_list,
                   "with", gg.optkeyword "|",
                   match_cases_list_parser,
                   "end",
