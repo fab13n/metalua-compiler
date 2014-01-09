@@ -47,7 +47,7 @@ local function if_list_suffix_builder (list_element, suffix)
     local new_header = `If{ suffix[1] }
     match list_element with
     | `Comp{ _, acc } -> table.insert (acc, new_header); return list_element
-    |  _ -> return `Comp{ x, { new_header } }
+    |  _ -> return `Comp{ list_element, { new_header } }
     end
 end
 

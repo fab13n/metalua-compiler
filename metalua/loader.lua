@@ -80,10 +80,12 @@ table.insert(M.loaders, M.metalua_loader)
 ----------------------------------------------------------------------
 function extension (name, mlp)
     local complete_name = M.metalua_extension_prefix..name
-    -- TODO: pass mlp around
     local extend_func = require (complete_name)
-    local ast =extend_func(mlp)
-    return ast
+    if not mlp.extensions[complete_name] then
+        local ast =extend_func(mlp)
+        mlp.extensions[complete_name] =extend_func
+        return ast
+     end
 end
 
 return M

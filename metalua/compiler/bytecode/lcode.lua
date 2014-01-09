@@ -162,7 +162,7 @@ function luaK:fixjump(fs, pc, dest)
   local offset = dest - (pc + 1)
   assert(dest ~= self.NO_JUMP)
   if math.abs(offset) > luaP.MAXARG_sBx then
-    luaX:syntaxerror(fs.ls, "control structure too long")
+    error("control structure too long")
   end
   luaP:SETARG_sBx(jmp, offset)
 end
@@ -317,7 +317,7 @@ function luaK:checkstack(fs, n)
   local newstack = fs.freereg + n
   if newstack > fs.f.maxstacksize then
     if newstack >= luaK.MAXSTACK then
-      luaX:syntaxerror(fs.ls, "function or expression too complex")
+      error("function or expression too complex")
     end
     fs.f.maxstacksize = newstack
   end

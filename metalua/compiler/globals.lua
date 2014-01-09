@@ -55,13 +55,14 @@ function M.loadfile(filename)
 end
 
 function M.load(f, name)
+   local acc = { }
    while true do
       local x = f()
       if not x then break end
       assert(type(x)=='string', "function passed to load() must return strings")
       table.insert(acc, x)
    end
-   return M.loadstring(table.concat(x))
+   return M.loadstring(table.concat(acc))
 end
 
 function M.dostring(src)

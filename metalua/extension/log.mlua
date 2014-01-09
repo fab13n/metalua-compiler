@@ -18,6 +18,7 @@
 -------------------------------------------------------------------------------
 
 require 'metalua.dollar'
+local pp = require 'metalua.pprint'
 
 -{ extension ('match', ...) }
 
@@ -41,7 +42,7 @@ function dollar.log(...)
       | `Number{ w }  -> width = w
       --| `String{...} | `Number{...} -> ti (xtra_args, args[i])
       | `Id{n} -> ti (names, n); ti (vals, args[i])
-      | x      -> ti (names, table.tostring(x, 'nohash')); ti (vals, x)
+      | x      -> ti (names, pp.tostring(x)); ti (vals, x)
       end
    end
 

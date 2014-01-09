@@ -442,7 +442,7 @@ function M.dump_file (proto, filename)
    local file = io.open (filename, "wb")
    file:write (buff.data)
    io.close(file)
-   if UNIX_SHARPBANG then os.execute ("chmod a+x "..filename) end
+   --if UNIX_SHARPBANG then os.execute ("chmod a+x "..filename) end
 end
 
 return M

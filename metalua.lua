@@ -167,7 +167,7 @@ function M.main (...)
       end
       local valid = true -- TODO: check AST's correctness
       if not valid then
-         printf ("Cannot compile %s:\n%s", table.tostring(x), ast or "no msg")
+         pp.printf ("Cannot compile %s:\n%s", x, ast or "no msg")
          os.exit (AST_COMPILE_ERROR_NUMBER)
       end
       ast.origin = x
@@ -192,10 +192,12 @@ function M.main (...)
    if cfg['print-ast'] or cfg['print-ast-lineinfo'] then
       verb_print "Resulting AST:"
       for _, x in ipairs(code) do
-         printf("--- AST From %s: ---", table.tostring(x.source, 'nohash'))
+         pp.printf("--- AST From %s: ---", x.source)
          if x.origin and x.origin.tag=='File' then x=x[1][1][2][1] end
-         if cfg['print-ast-lineinfo'] then table.print(x, 80, "indent1")
-         else table.print(x, 80, 'nohash') end
+         local pp_cfg = cfg['print-ast-lineinfo']
+             and { line_max=1, fix_indent=1, metalua=tag=1 }
+             or  { line_max=1, metalua=tag=1, hide_hash=1  }
+         pp.print(x, 80, pp_cfg)
       end
    end
 

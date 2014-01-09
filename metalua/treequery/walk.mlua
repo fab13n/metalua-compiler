@@ -131,7 +131,7 @@ function M.traverse.expr (cfg, x, ...)
    | `Index{ a, b }            -> E(a); E(b)
    | `Op{ opid, ... }          -> E(x[2]); if #x==3 then E(x[3]) end
    | `Function{ params, body } -> OS(body); IL(params); B(body); CS(body)
-   | `Stat{ b, e }             -> OS(body); B(b); E(e); CS(body)
+   | `Stat{ b, e }             -> OS(b); B(b); E(e); CS(b)
    | `Id{ name }               -> M.occurrence(cfg, x, unpack(ancestors))
    | `Table{ ... }             ->
       for i = 1, #x do match x[i] with

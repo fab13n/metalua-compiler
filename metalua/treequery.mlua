@@ -247,7 +247,7 @@ function Q :first()
 end
 
 --- Pretty printer for queries
-function Q :__tostring() return "treequery("..table.tostring(self.root, 'nohash')..")" end
+function Q :__tostring() return "<treequery>" end
 
 -- -----------------------------------------------------------------------------
 -- -----------------------------------------------------------------------------
@@ -381,7 +381,7 @@ end
 --  @param pred the predicate to transform
 --  @return a predicate
 function M.parent(n, pred, ...)
-    if type(a)~='number' then n, pred = 2, n end
+    if type(n)~='number' then n, pred = 2, n end
     if type(pred)=='string' then pred = M.has_tag(pred, ...) end
     return function(self, ...)
         return select(n, ...) and pred(self, select(n, ...))
