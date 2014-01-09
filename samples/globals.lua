@@ -23,6 +23,9 @@
 --
 -- Usage: lua globals.lua file_to_analyze.lua
 --
+-- TODO:
+-- * take command-line options
+-- * 
 
 require 'metalua.loader' -- needed to load "metalua/treequery.mlua"
 
@@ -47,8 +50,19 @@ function analyze(ast)
     local globals = { } -- variable name -> list of line numbers
 
     -- add the line number where node `id` occurs into table `globals`:
-    local function log_global(id)
-        local name, line = id[1], id.lineinfo.first.line
+    local function log_global(id, ...)
+        local name = id[1]
+        local line = id.lineinfo and id.lineinfo.first.line or "no info"
+        local full_chain = {[0]=id, ...}
+        -- Retrieve the subfields x.subfield_1.....subfield_n
+        for i, ancestor in ipairs(full_chain) do
+            -- `Index{ x, `String y } if x==full_chain[i-1]
+            if ancestor.tag=='Index' and
+                ancestor[1]==full_chain[i-1] and
+                ancestor[2].tag=='String' then
+                name = name.."."..ancestor[2][1]
+            else break end
+        end
         local lines = globals[name]
         if lines then table.insert(lines, line)
         else globals[name] = { line } end
