@@ -92,6 +92,11 @@ local function add_pos_filter(self, position, inverted, inclusive, f, ...)
     return self
 end
 
+function Q :if_unknown(f)
+    self.unknown_handler = f or (||nil)
+    return self
+end
+
 -- TODO: offer an API for inclusive pos_filters
 
 --- select nodes which are after one which satisfies predicate f
@@ -205,6 +210,8 @@ function Q :execute()
         --printf("down/up on binder done")
     end
 
+    cfg.unknown = self.unknown_handler
+
     --function cfg.occurrence (binder, occ)
     --   if binder then OCC2BIND[occ] = binder[1] end
        --printf(" >>> %s is an occurrence of %s", occ[1], table.tostring(binder and binder[2]))
@@ -221,7 +228,7 @@ end
 --       have been examined.
 function Q :foreach(down, up)
     if not up and not down then
-        error "iterator not implemented"
+        error "iterator missing"
     end
     self.up_f = up
     self.down_f = down
